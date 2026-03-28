@@ -312,3 +312,158 @@ export function formatWh(wh: number): string {
 export function formatAh(ah: number): string {
   return `${ah.toFixed(0)} Ah`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VÉRIFICATEUR SECTION CÂBLES PV — Conforme GATECH REV I (2024-DO-SE-DOC-06)
+// Formule : S = (ρ × 2 × L × I) / (ε × U)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Résistivité cuivre à température de service (80°C) — valeur GATECH
+export const RHO_CU_80 = 0.02314; // Ω·mm²/m
+export const RHO_AL_80 = 0.0377;  // Ω·mm²/m (aluminium)
+
+// Sections commerciales normalisées (mm²)
+export const COMMERCIAL_SECTIONS = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120] as const;
+
+// Courant admissible Iz à 80°C en pose libre (câble PV, UTE C15-100 / IEC 60364)
+// Valeurs conservatives pour environnement désertique (80°C ambiant)
+const IZ_TABLE: Record<number, number> = {
+  1.5: 13, 2.5: 18, 4: 24, 6: 31, 10: 43, 16: 57,
+  25: 75, 35: 92, 50: 112, 70: 138, 95: 168, 120: 194,
+};
+
+export type CableCheckerInput = {
+  conductorType: "copper" | "aluminum";
+  cableLength: number;      // m (aller simple)
+  iImp: number;             // A — courant au point de puissance max
+  iIsc: number;             // A — courant court-circuit
+  currentType: "imp" | "isc"; // courant utilisé pour le calcul de section
+  systemVoltage: number;    // V (24 ou 48)
+  ambientTemp: number;      // °C (défaut 80)
+  maxVoltageDrop: number;   // % (défaut 3)
+};
+
+export type CableCheckerResult = {
+  rho: number;              // Ω·mm²/m utilisé
+  iCalc: number;            // Courant de calcul (Imp ou Isc)
+  sectionMin: number;       // mm² — section minimale calculée
+  sectionCommercial: number;// mm² — section commerciale recommandée
+  deltaVReal: number;       // V — chute de tension réelle
+  deltaVPercent: number;    // % — chute de tension réelle
+  powerLoss: number;        // W — pertes résistives
+  iz: number;               // A — courant admissible à 80°C
+  izCheck: boolean;         // true si Iz ≥ 1.25 × Isc
+  izStatus: "ok" | "danger";
+  voltageDropStatus: "ok" | "acceptable" | "danger";
+};
+
+export function calculateCableSection(input: CableCheckerInput): CableCheckerResult {
+  const { conductorType, cableLength, iImp, iIsc, currentType, systemVoltage, maxVoltageDrop } = input;
+
+  const rho = conductorType === "copper" ? RHO_CU_80 : RHO_AL_80;
+  const iCalc = currentType === "imp" ? iImp : iIsc;
+  const epsilon = maxVoltageDrop / 100;
+
+  // Formule GATECH : S = (ρ × 2 × L × I) / (ε × U)
+  const sectionMin = (rho * 2 * cableLength * iCalc) / (epsilon * systemVoltage);
+
+  // Section commerciale : première valeur ≥ sectionMin
+  const sectionCommercial = COMMERCIAL_SECTIONS.find((s) => s >= sectionMin) ?? 120;
+
+  // Chute de tension réelle avec la section commerciale
+  const deltaVReal = (rho * 2 * cableLength * iCalc) / sectionCommercial;
+  const deltaVPercent = (deltaVReal / systemVoltage) * 100;
+
+  // Pertes résistives : P = ρ × 2L × I² / S
+  const powerLoss = (rho * 2 * cableLength * iCalc * iCalc) / sectionCommercial;
+
+  // Courant admissible à 80°C
+  const iz = IZ_TABLE[sectionCommercial] ?? 0;
+
+  // Vérification Iz ≥ 1.25 × Isc (NF C 15-100 / IEC 60364-7-712)
+  const izCheck = iz >= 1.25 * iIsc;
+  const izStatus: CableCheckerResult["izStatus"] = izCheck ? "ok" : "danger";
+
+  const voltageDropStatus: CableCheckerResult["voltageDropStatus"] =
+    deltaVPercent <= 3 ? "ok" : deltaVPercent <= 5 ? "acceptable" : "danger";
+
+  return {
+    rho, iCalc, sectionMin, sectionCommercial,
+    deltaVReal, deltaVPercent, powerLoss,
+    iz, izCheck, izStatus, voltageDropStatus,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VÉRIFICATEUR MPPT GATECH — GS-MPPT-100M / GS-MPPT-80M (Morning Star)
+// Conforme GATECH REV I (2024-DO-SE-DOC-06)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type GatechMpptModel = "GS-MPPT-60" | "GS-MPPT-80M" | "GS-MPPT-100M";
+
+export const GATECH_MPPT_SPECS: Record<GatechMpptModel, {
+  vmaxInput: number;   // V — tension max entrée
+  imaxInput: number;   // A — courant max entrée
+  vmaxBatt: number;    // V — tension batterie max
+  label: string;
+}> = {
+  "GS-MPPT-60":   { vmaxInput: 200, imaxInput: 60,  vmaxBatt: 60, label: "Morning Star GS-MPPT-60" },
+  "GS-MPPT-80M":  { vmaxInput: 200, imaxInput: 80,  vmaxBatt: 60, label: "Morning Star GS-MPPT-80M" },
+  "GS-MPPT-100M": { vmaxInput: 200, imaxInput: 100, vmaxBatt: 60, label: "Morning Star GS-MPPT-100M" },
+};
+
+export type GatechMpptInput = {
+  model: GatechMpptModel;
+  nSeries: number;       // Modules en série par chaîne
+  nParallel: number;     // Chaînes en parallèle
+  voc: number;           // V — Voc module (STC)
+  isc: number;           // A — Isc module (STC)
+  kVoc?: number;         // Coefficient sécurité tension (défaut 1.14 GATECH)
+  kIsc?: number;         // Coefficient sécurité courant (défaut 1.25 GATECH)
+};
+
+export type GatechMpptResult = {
+  vstringMax: number;    // V — Voc × kVoc × Ns
+  itotalMax: number;     // A — Isc × kIsc × Np
+  vmaxAllowed: number;
+  imaxAllowed: number;
+  voltageStatus: "ok" | "danger";
+  currentStatus: "ok" | "danger";
+  globalStatus: "ok" | "danger";
+  maxSeriesAllowed: number;   // Ns max autorisé
+  maxParallelAllowed: number; // Np max autorisé
+  voltageMargin: number;      // % de marge restante
+  currentMargin: number;      // % de marge restante
+};
+
+export function calculateGatechMppt(input: GatechMpptInput): GatechMpptResult {
+  const { model, nSeries, nParallel, voc, isc, kVoc = 1.14, kIsc = 1.25 } = input;
+  const specs = GATECH_MPPT_SPECS[model];
+
+  // Tension max chaîne : Voc × kVoc × Ns
+  const vstringMax = voc * kVoc * nSeries;
+  // Courant total : Isc × kIsc × Np
+  const itotalMax = isc * kIsc * nParallel;
+
+  const voltageStatus: GatechMpptResult["voltageStatus"] = vstringMax <= specs.vmaxInput ? "ok" : "danger";
+  const currentStatus: GatechMpptResult["currentStatus"] = itotalMax <= specs.imaxInput ? "ok" : "danger";
+  const globalStatus: GatechMpptResult["globalStatus"] =
+    voltageStatus === "ok" && currentStatus === "ok" ? "ok" : "danger";
+
+  // Nombre max autorisé en série : floor(Vmax / (Voc × kVoc))
+  const maxSeriesAllowed = Math.floor(specs.vmaxInput / (voc * kVoc));
+  // Nombre max autorisé en parallèle : floor(Imax / (Isc × kIsc))
+  const maxParallelAllowed = Math.floor(specs.imaxInput / (isc * kIsc));
+
+  const voltageMargin = ((specs.vmaxInput - vstringMax) / specs.vmaxInput) * 100;
+  const currentMargin = ((specs.imaxInput - itotalMax) / specs.imaxInput) * 100;
+
+  return {
+    vstringMax, itotalMax,
+    vmaxAllowed: specs.vmaxInput,
+    imaxAllowed: specs.imaxInput,
+    voltageStatus, currentStatus, globalStatus,
+    maxSeriesAllowed, maxParallelAllowed,
+    voltageMargin, currentMargin,
+  };
+}

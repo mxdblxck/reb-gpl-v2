@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { ArrowLeft } from "lucide-react";
@@ -9,7 +8,7 @@ import { motion } from "motion/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
-import { Sun, Save, Download, FileSpreadsheet, FileText, Info, AlertCircle, Shield } from "lucide-react";
+import { Sun, Save, FileSpreadsheet, FileText, Info, AlertCircle, Shield } from "lucide-react";
 import SiteParamsForm from "@/pages/calculator/_components/SiteParamsForm.tsx";
 import SiteResultCard from "@/pages/calculator/_components/SiteResultCard.tsx";
 import EnergyCharts from "@/pages/calculator/_components/EnergyCharts.tsx";
@@ -418,7 +417,8 @@ export default function ProjectPage() {
             </TabsContent>
           ))}
 
-          {/* Comparison Tab */}
+
+          {/* Onglet Comparaison */}
           <TabsContent value="comparison" className="mt-4">
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -448,98 +448,31 @@ export default function ProjectPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Énergie (Wh/j)</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium">
-                                {r ? r.correctedEnergyLoad.toFixed(0) : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Puissance PV (Wp)</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium">
-                                {r ? r.pv.actualPvPower.toLocaleString() : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Modules PV</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium">
-                                {r ? r.pv.totalModules : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Config PV</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium text-xs">
-                                {r ? r.pv.configLabel : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Capacité Batterie (Ah)</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium">
-                                {r ? r.battery.actualCapacityAh.toLocaleString() : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Énergie Batterie (Wh)</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium">
-                                {r ? r.battery.actualCapacityWh.toLocaleString() : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 text-muted-foreground">Config Batterie</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium text-xs">
-                                {r ? r.battery.configLabel : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        <tr>
-                          <td className="py-3 px-4 text-muted-foreground">Total Cellules</td>
-                          {SITES.map(sid => {
-                            const r = results.find(r => r.siteId === sid);
-                            return (
-                              <td key={sid} className="text-center py-3 px-4 font-medium">
-                                {r ? r.battery.totalCells.toLocaleString() : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
+                        {[
+                          { label: "Énergie (Wh/j)", fn: (r: SiteResult) => r.correctedEnergyLoad.toFixed(0) },
+                          { label: "Puissance PV (Wp)", fn: (r: SiteResult) => r.pv.actualPvPower.toLocaleString() },
+                          { label: "Modules PV", fn: (r: SiteResult) => String(r.pv.totalModules) },
+                          { label: "Config PV", fn: (r: SiteResult) => r.pv.configLabel },
+                          { label: "Capacité Batterie (Ah)", fn: (r: SiteResult) => r.battery.actualCapacityAh.toLocaleString() },
+                          { label: "Énergie Batterie (Wh)", fn: (r: SiteResult) => r.battery.actualCapacityWh.toLocaleString() },
+                          { label: "Config Batterie", fn: (r: SiteResult) => r.battery.configLabel },
+                          { label: "Total Cellules", fn: (r: SiteResult) => r.battery.totalCells.toLocaleString() },
+                        ].map(({ label, fn }) => (
+                          <tr key={label} className="border-b">
+                            <td className="py-3 px-4 text-muted-foreground">{label}</td>
+                            {SITES.map(sid => {
+                              const r = results.find(r => r.siteId === sid);
+                              return (
+                                <td key={sid} className="text-center py-3 px-4 font-medium">
+                                  {r ? fn(r) : "—"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
-                  
                   {results.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
                       <p>Aucune donnée à comparer. Saisissez des charges énergétiques pour voir la comparaison.</p>

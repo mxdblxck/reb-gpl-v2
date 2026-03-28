@@ -590,3 +590,295 @@ export function generateExcel(results: SiteResult[], projectName?: string): void
     : `REB-GPL-PV-Dimensionnement-${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PDF — Rapport Vérificateur Section Câbles PV (GATECH REV I)
+// ═══════════════════════════════════════════════════════════════════════════════
+import type { CableCheckerInput, CableCheckerResult, GatechMpptInput, GatechMpptResult } from "./solar-calc.ts";
+import { GATECH_MPPT_SPECS } from "./solar-calc.ts";
+
+export function generateCablePDF(input: CableCheckerInput, result: CableCheckerResult): void {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 15;
+
+  // En-tête
+  doc.setFillColor(...BRAND_ORANGE);
+  doc.rect(0, 0, pageW, 30, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("SONATRACH — REB GPL LINE", margin, 12);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Rapport Vérificateur Section Câbles PV — GATECH REV I (2024-DO-SE-DOC-06)", margin, 20);
+  doc.setFontSize(9);
+  doc.text(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }), pageW - margin, 20, { align: "right" });
+
+  let y = 40;
+
+  // Titre
+  doc.setTextColor(...DARK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("VÉRIFICATION DE SECTION DE CÂBLES PV", margin, y);
+  y += 8;
+  doc.setDrawColor(...BRAND_ORANGE);
+  doc.setLineWidth(0.8);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  // Formule
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...BRAND_ORANGE);
+  doc.text("Formule GATECH : S = (ρ × 2 × L × I) / (ε × U)", margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  doc.text(`ρ = ${result.rho} Ω·mm²/m (${input.conductorType === "copper" ? "Cuivre" : "Aluminium"} à ${input.ambientTemp}°C) | ε = ${input.maxVoltageDrop}% | L = ${input.cableLength} m | U = ${input.systemVoltage} V`, margin, y);
+  y += 10;
+
+  // Paramètres d'entrée
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK);
+  doc.text("1. PARAMÈTRES D'ENTRÉE", margin, y);
+  y += 4;
+
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ["Type de conducteur", input.conductorType === "copper" ? "Cuivre" : "Aluminium"],
+      ["Résistivité ρ", `${result.rho} Ω·mm²/m`],
+      ["Longueur câble (aller)", `${input.cableLength} m`],
+      ["Courant Imp", `${input.iImp} A`],
+      ["Courant Isc", `${input.iIsc} A`],
+      ["Courant de calcul utilisé", `${input.currentType === "imp" ? "Imp" : "Isc"} = ${result.iCalc.toFixed(2)} A`],
+      ["Tension système", `${input.systemVoltage} V`],
+      ["Température ambiante", `${input.ambientTemp} °C`],
+      ["Chute de tension maximale", `${input.maxVoltageDrop} %`],
+    ],
+    theme: "plain",
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 65, textColor: [80, 80, 80] },
+      1: { textColor: DARK },
+    },
+    margin: { left: margin, right: margin },
+  });
+  y = ((doc as unknown) as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  // Résultats
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK);
+  doc.text("2. RÉSULTATS DE CALCUL", margin, y);
+  y += 4;
+
+  const globalOk = result.izStatus === "ok" && result.voltageDropStatus !== "danger";
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Paramètre", "Formule", "Valeur", "Statut"]],
+    body: [
+      ["Section minimale S_min", `(${result.rho} × 2 × ${input.cableLength} × ${result.iCalc.toFixed(2)}) / (${input.maxVoltageDrop / 100} × ${input.systemVoltage})`, `${result.sectionMin.toFixed(3)} mm²`, "—"],
+      ["Section commerciale recommandée", "Normalisée ≥ S_min", `${result.sectionCommercial} mm²`, "✅"],
+      ["Chute de tension ΔV", `ρ × 2L × I / S`, `${result.deltaVReal.toFixed(3)} V`, "—"],
+      ["Chute de tension ΔV%", `(ΔV / ${input.systemVoltage}) × 100`, `${result.deltaVPercent.toFixed(2)} %`, result.voltageDropStatus === "ok" ? "✅ OK" : result.voltageDropStatus === "acceptable" ? "⚠️ Acceptable" : "❌ NON"],
+      ["Pertes résistives P", `ρ × 2L × I² / S`, `${result.powerLoss.toFixed(2)} W`, "—"],
+      [`Courant admissible Iz (${input.ambientTemp}°C)`, "Table UTE C15-100", `${result.iz} A`, "—"],
+      ["Vérification Iz ≥ 1.25 × Isc", `${result.iz} ≥ ${(1.25 * input.iIsc).toFixed(2)}`, `${result.izCheck ? "CONFORME" : "NON CONFORME"}`, result.izCheck ? "✅ OK" : "❌ DANGER"],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: BRAND_ORANGE, textColor: [255, 255, 255], fontSize: 9 },
+    bodyStyles: { fontSize: 9 },
+    alternateRowStyles: { fillColor: BRAND_LIGHT },
+    columnStyles: {
+      0: { cellWidth: 55, fontStyle: "bold" },
+      1: { cellWidth: 55, textColor: GRAY, fontSize: 8 },
+      2: { cellWidth: 30, halign: "right" },
+      3: { cellWidth: "auto", halign: "center", fontStyle: "bold" },
+    },
+    margin: { left: margin, right: margin },
+  });
+  y = ((doc as unknown) as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  // Verdict
+  doc.setFillColor(globalOk ? 34 : 220, globalOk ? 197 : 38, globalOk ? 94 : 38);
+  doc.rect(margin, y, pageW - 2 * margin, 12, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(
+    globalOk ? "✅ CÂBLAGE CONFORME — Section et courant admissible validés" : "❌ NON CONFORME — Revoir la section ou le type de câble",
+    pageW / 2, y + 7.5, { align: "center" }
+  );
+
+  // Pied de page
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text(
+    "SONATRACH DC-EPM — Projet REB GPL Ligne | Conforme GATECH REV I (2024-DO-SE-DOC-06)",
+    pageW / 2, doc.internal.pageSize.getHeight() - 7, { align: "center" }
+  );
+
+  doc.save(`REB-GPL-Cables-PV-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PDF — Rapport Vérificateur MPPT GATECH
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function generateMpptPDF(input: GatechMpptInput, result: GatechMpptResult): void {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const specs = GATECH_MPPT_SPECS[input.model];
+
+  // En-tête
+  doc.setFillColor(...BRAND_ORANGE);
+  doc.rect(0, 0, pageW, 30, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("SONATRACH — REB GPL LINE", margin, 12);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Rapport Vérificateur Compatibilité MPPT — GATECH REV I (2024-DO-SE-DOC-06)", margin, 20);
+  doc.setFontSize(9);
+  doc.text(new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }), pageW - margin, 20, { align: "right" });
+
+  let y = 40;
+
+  doc.setTextColor(...DARK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text(`VÉRIFICATION COMPATIBILITÉ MPPT — ${input.model}`, margin, y);
+  y += 8;
+  doc.setDrawColor(...BRAND_ORANGE);
+  doc.setLineWidth(0.8);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
+  // Critères
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...BRAND_ORANGE);
+  doc.text(`Critères GATECH : Vstring = Voc × ${input.kVoc} × Ns ≤ ${specs.vmaxInput} V  |  Itotal = Isc × ${input.kIsc} × Np ≤ ${specs.imaxInput} A`, margin, y);
+  y += 10;
+
+  // Paramètres
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK);
+  doc.text("1. PARAMÈTRES D'ENTRÉE", margin, y);
+  y += 4;
+
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ["Modèle régulateur", specs.label],
+      ["Tension max entrée", `${specs.vmaxInput} V`],
+      ["Courant max entrée", `${specs.imaxInput} A`],
+      ["Modules en série (Ns)", `${input.nSeries}`],
+      ["Chaînes en parallèle (Np)", `${input.nParallel}`],
+      ["Voc module (STC)", `${input.voc} V`],
+      ["Isc module (STC)", `${input.isc} A`],
+      ["Coefficient sécurité tension kVoc", `${input.kVoc}`],
+      ["Coefficient sécurité courant kIsc", `${input.kIsc}`],
+    ],
+    theme: "plain",
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 65, textColor: [80, 80, 80] },
+      1: { textColor: DARK },
+    },
+    margin: { left: margin, right: margin },
+  });
+  y = ((doc as unknown) as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  // Résultats
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK);
+  doc.text("2. RÉSULTATS DE VÉRIFICATION", margin, y);
+  y += 4;
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Critère", "Formule", "Calculé", "Limite", "Statut"]],
+    body: [
+      [
+        "Tension chaîne Vstring",
+        `${input.voc} × ${input.kVoc} × ${input.nSeries}`,
+        `${result.vstringMax.toFixed(2)} V`,
+        `≤ ${result.vmaxAllowed} V`,
+        result.voltageStatus === "ok" ? "✅ OK" : "❌ DANGER",
+      ],
+      [
+        "Courant total Itotal",
+        `${input.isc} × ${input.kIsc} × ${input.nParallel}`,
+        `${result.itotalMax.toFixed(2)} A`,
+        `≤ ${result.imaxAllowed} A`,
+        result.currentStatus === "ok" ? "✅ OK" : "❌ DANGER",
+      ],
+      [
+        "Ns max autorisé",
+        `floor(${result.vmaxAllowed} / (${input.voc} × ${input.kVoc}))`,
+        `${input.nSeries}`,
+        `≤ ${result.maxSeriesAllowed}`,
+        input.nSeries <= result.maxSeriesAllowed ? "✅ OK" : "❌ DANGER",
+      ],
+      [
+        "Np max autorisé",
+        `floor(${result.imaxAllowed} / (${input.isc} × ${input.kIsc}))`,
+        `${input.nParallel}`,
+        `≤ ${result.maxParallelAllowed}`,
+        input.nParallel <= result.maxParallelAllowed ? "✅ OK" : "❌ DANGER",
+      ],
+      ["Marge tension", "—", `${result.voltageMargin.toFixed(1)} %`, "—", "—"],
+      ["Marge courant", "—", `${result.currentMargin.toFixed(1)} %`, "—", "—"],
+    ],
+    theme: "striped",
+    headStyles: { fillColor: BRAND_ORANGE, textColor: [255, 255, 255], fontSize: 9 },
+    bodyStyles: { fontSize: 9 },
+    alternateRowStyles: { fillColor: BRAND_LIGHT },
+    columnStyles: {
+      0: { cellWidth: 45, fontStyle: "bold" },
+      1: { cellWidth: 50, textColor: GRAY, fontSize: 8 },
+      2: { cellWidth: 25, halign: "right" },
+      3: { cellWidth: 25, halign: "center" },
+      4: { cellWidth: "auto", halign: "center", fontStyle: "bold" },
+    },
+    margin: { left: margin, right: margin },
+  });
+  y = ((doc as unknown) as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  // Verdict
+  const ok = result.globalStatus === "ok";
+  doc.setFillColor(ok ? 34 : 220, ok ? 197 : 38, ok ? 94 : 38);
+  doc.rect(margin, y, pageW - 2 * margin, 14, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(
+    ok
+      ? `✅ COMPATIBLE — Configuration ${input.nSeries}S × ${input.nParallel}P validée pour ${input.model}`
+      : `❌ INCOMPATIBLE — Revoir la configuration (Ns ≤ ${result.maxSeriesAllowed}, Np ≤ ${result.maxParallelAllowed})`,
+    pageW / 2, y + 8, { align: "center" }
+  );
+
+  // Pied de page
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text(
+    "SONATRACH DC-EPM — Projet REB GPL Ligne | Conforme GATECH REV I (2024-DO-SE-DOC-06)",
+    pageW / 2, doc.internal.pageSize.getHeight() - 7, { align: "center" }
+  );
+
+  doc.save(`REB-GPL-MPPT-${input.model}-${new Date().toISOString().slice(0, 10)}.pdf`);
+}

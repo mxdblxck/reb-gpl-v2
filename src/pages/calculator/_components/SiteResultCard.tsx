@@ -9,6 +9,8 @@ import {
   calculateRecharge,
   SITE_DETAIL_CONFIGS,
 } from "@/lib/solar-calc.ts";
+import SiteCableChecker from "./SiteCableChecker.tsx";
+import SiteMpptChecker from "./SiteMpptChecker.tsx";
 
 type Props = {
   result: SiteResult;
@@ -217,6 +219,12 @@ export default function SiteResultCard({ result }: Props) {
 
       {/* ── Temps de Recharge des Batteries ── */}
       <RechargeTimeCard result={result} />
+
+      {/* ── Vérification Câbles PV ── */}
+      <SiteCableChecker result={result} />
+
+      {/* ── Compatibilité MPPT ── */}
+      <SiteMpptChecker result={result} />
     </div>
   );
 }
