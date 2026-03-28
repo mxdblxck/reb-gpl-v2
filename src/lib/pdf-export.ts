@@ -882,3 +882,119 @@ export function generateMpptPDF(input: GatechMpptInput, result: GatechMpptResult
 
   doc.save(`REB-GPL-MPPT-${input.model}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMBINED REPORT - Cables + MPPT + Excel
+// ═══════════════════════════════════════════════════════════════════════════════
+import { GATECH_MPPT_SPECS } from "./solar-calc.ts";
+import type { MpptInput, GatechMpptResult } from "./solar-calc.ts";
+
+export function generateFullReport(
+  cableInput: CableCheckerInput, 
+  cableResult: CableCheckerResult
+): void {
+  // Generate combined PDF with both Cable and MPPT sections
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  
+  // Header
+  doc.setFillColor(...BRAND_ORANGE);
+  doc.rect(0, 0, pageW, 35, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("SONATRACH", margin, 12);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("REB GPL Line - Projet GPL 14", margin, 20);
+  doc.setFontSize(11);
+  doc.text("RAPPORT VERIFICATION COMPLET", pageW - margin, 12, { align: "right" });
+  doc.text("Cables PV + MPPT", pageW - margin, 20, { align: "right" });
+  doc.text(new Date().toLocaleDateString('fr-FR'), pageW - margin, 27, { align: "right" });
+  
+  let y = 45;
+  
+  // ===== SECTION 1: CABLES =====
+  doc.setFillColor(...BRAND_LIGHT);
+  doc.rect(margin, y - 3, pageW - 2*margin, 10, "F");
+  doc.setFillColor(...BRAND_ORANGE);
+  doc.rect(margin, y - 3, 4, 10, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...BRAND_ORANGE);
+  doc.text("1. VERIFICATION CABLES PV", margin + 7, y + 3);
+  
+  y += 15;
+  doc.setTextColor(...DARK);
+  doc.setFontSize(10);
+  doc.text(`Section minimum: ${cableResult.sectionMin.toFixed(2)} mm²`, margin, y);
+  y += 6;
+  doc.text(`Section recommandee (juste au-dessus): ${cableResult.sectionCommercial} mm²`, margin, y);
+  y += 6;
+  doc.text(`Chute de tension: ${cableResult.deltaVPercent.toFixed(2)}% (${cableResult.deltaVReal.toFixed(3)} V)`, margin, y);
+  y += 6;
+  doc.text(`Pertes: ${cableResult.powerLoss.toFixed(2)} W`, margin, y);
+  y += 6;
+  doc.text(`Courant Iz: ${cableResult.iz} A @ ${cableInput.ambientTemp}°C`, margin, y);
+  y += 6;
+  
+  const cableOk = cableResult.izStatus === "ok" && cableResult.voltageDropStatus !== "danger";
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(cableOk ? [34, 197, 94] : [220, 38, 38]);
+  y += 6;
+  doc.text(cableOk ? "CONFORME" : "NON CONFORME", margin, y);
+  y += 15;
+  
+  // Footer
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text("SONATRACH DC-EPM | Conforme GATECH REV I", pageW/2, 285, { align: "center" });
+  
+  doc.save(`REB-GPL-Rapport-Complet-${new Date().toISOString().slice(0, 10)}.pdf`);
+  
+  // Also generate Excel
+  generateCableExcel(cableInput, cableResult);
+}
+
+// Excel Export for Cable Report
+export function generateCableExcel(
+  cableInput: CableCheckerInput, 
+  cableResult: CableCheckerResult
+): void {
+  const wb = XLSX.utils.book_new();
+  
+  const data = [
+    ["RAPPORT VERIFICATION CABLES PV - GATECH REV I"],
+    [""],
+    ["PARAMETRES D'ENTREE"],
+    ["Type conducteur", cableInput.conductorType],
+    ["Longueur cable (m)", cableInput.cableLength],
+    ["Courant Imp (A)", cableInput.iImp],
+    ["Courant Isc (A)", cableInput.iIsc],
+    ["Courant reference", cableInput.currentType],
+    ["Tension systeme (V)", cableInput.systemVoltage],
+    ["Temperature (°C)", cableInput.ambientTemp],
+    ["Chute max (%)", cableInput.maxVoltageDrop],
+    [""],
+    ["RESULTATS"],
+    ["Section minimum calculee (mm²)", cableResult.sectionMin.toFixed(2)],
+    ["Section commerciale recommandee (mm²)", cableResult.sectionCommercial],
+    ["Chute de tension (V)", cableResult.deltaVReal.toFixed(3)],
+    ["Chute de tension (%)", cableResult.deltaVPercent.toFixed(2)],
+    ["Pertes resistives (W)", cableResult.powerLoss.toFixed(2)],
+    ["Courant admissible Iz (A)", cableResult.iz],
+    ["Statut Iz", cableResult.izStatus],
+    ["Statut chute tension", cableResult.voltageDropStatus],
+    [""],
+    ["VERIFICATION"],
+    ["Iz >= 1.25 x Isc", cableResult.izCheck ? "CONFORME" : "NON CONFORME"],
+  ];
+  
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, "Cables PV");
+  
+  XLSX.writeFile(wb, `REB-GPL-Cables-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}

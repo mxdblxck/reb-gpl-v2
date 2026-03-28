@@ -368,7 +368,7 @@ export function calculateCableSection(input: CableCheckerInput): CableCheckerRes
   const sectionMin = (rho * 2 * cableLength * iCalc) / (epsilon * systemVoltage);
 
   // Section commerciale : première valeur ≥ sectionMin
-  const sectionCommercial = COMMERCIAL_SECTIONS.find((s) => s >= sectionMin) ?? 120;
+  const sectionCommercial = COMMERCIAL_SECTIONS.find((s) => s > sectionMin) ?? 120;
 
   // Chute de tension réelle avec la section commerciale
   const deltaVReal = (rho * 2 * cableLength * iCalc) / sectionCommercial;
