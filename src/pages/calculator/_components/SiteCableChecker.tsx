@@ -160,9 +160,14 @@ export default function SiteCableChecker({ result }: { result: SiteResult }) {
     [l1, i1, vMpp, s1Sugg, l2, i2, s2Sugg],
   );
 
+  // S_choisie = S_suggérée par défaut (user peut modifier via select)
+  // Cascade: si ε_S1 + ε_S2 > 3%, S1 monte d'un cran
   const s1 = s1User ?? s1Sugg;
-  const s2 = s2User ?? s2Auto;
+  const s2 = s2User ?? s2Sugg;  // Default: S_suggérée
   const s3 = s3User ?? s3Sugg;
+
+  // S1 optimisé si cascade nécessaire (affiché mais pas utilisé par défaut)
+  const s1Optimized = s1User ? s1 : cascadeS1(l1, i1, vMpp, s1Sugg, l2, i2, vMpp, s2);
 
   // ε S2 pour passer à S1 comme contexte
   const eps2 = useMemo(() => calcEps(l2, i2, vMpp, s2), [l2, i2, vMpp, s2]);
