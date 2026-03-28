@@ -22,15 +22,23 @@ const K_VOC = 1.15; // correction température froide (nuit désert)
 const K_ISC = 1.25; // marge sécurité courant (IEC 62548)
 const V_MAX_MPPT = 200; // V — limite absolue Morning Star
 
+// MPPT fixe par site (étude REB GPL)
+const SITE_MPPT: Record<string, GatechMpptModel> = {
+  BVS1: "GS-MPPT-100M",
+  BVS2: "GS-MPPT-80M",
+  TA:   "GS-MPPT-100M",
+};
+
 type Props = { result: SiteResult };
 
 export default function SiteMpptChecker({ result }: Props) {
   const { pv, params } = result;
 
   const ns = pv.seriesPerGroup;
+  // Modèle fixe selon le site — pas de sélecteur
+  const model: GatechMpptModel = SITE_MPPT[result.siteId] ?? "GS-MPPT-100M";
   const np = pv.parallelStrings * params.groups;
 
-  const [model, setModel] = useState<GatechMpptModel>("GS-MPPT-60");
   const [voc, setVoc] = useState(VOC_DEF);
   const [isc, setIsc] = useState(ISC_DEF);
 
@@ -74,34 +82,23 @@ export default function SiteMpptChecker({ result }: Props) {
 
         {/* Config récupérée */}
         <div className="rounded-lg bg-muted/30 border border-border px-3 py-2.5 space-y-1">
-          <p className="text-[11px] font-semibold text-foreground">
-            Configuration synchronisée — {result.siteId}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold text-foreground">
+              Configuration synchronisée — {result.siteId}
+            </p>
+            <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">
+              {specs.label}
+            </Badge>
+          </div>
           <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-[10px] font-mono text-muted-foreground">
             <span>Ns = {ns} modules/chaîne</span>
             <span>Np = {np} chaînes</span>
             <span>Voc = {voc} V | Isc = {isc} A</span>
+            <span>Vmax = {specs.vmaxInput} V | Imax = {specs.imaxInput} A</span>
           </div>
           <p className="text-[10px] font-mono text-primary">
             Voc_max = Voc × Ns × {K_VOC} &nbsp;|&nbsp; Isc_max = Isc × Np × {K_ISC}
           </p>
-        </div>
-
-        {/* Sélection modèle */}
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Régulateur MPPT</Label>
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(GATECH_MPPT_SPECS) as GatechMpptModel[]).map((m) => (
-              <button key={m} onClick={() => setModel(m)}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                  model === m
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:border-primary/40"
-                }`}>
-                {m} — {GATECH_MPPT_SPECS[m].imaxInput}A / {GATECH_MPPT_SPECS[m].vmaxInput}V
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Paramètres module */}
