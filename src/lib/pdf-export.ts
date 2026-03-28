@@ -883,11 +883,9 @@ export function generateMpptPDF(input: GatechMpptInput, result: GatechMpptResult
   doc.save(`REB-GPL-MPPT-${input.model}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════════
 // COMBINED REPORT - Cables + MPPT + Excel
 // ═══════════════════════════════════════════════════════════════════════════════
-import { GATECH_MPPT_SPECS } from "./solar-calc.ts";
-import type { MpptInput, GatechMpptResult } from "./solar-calc.ts";
 
 export function generateFullReport(
   cableInput: CableCheckerInput, 
@@ -942,7 +940,7 @@ export function generateFullReport(
   const cableOk = cableResult.izStatus === "ok" && cableResult.voltageDropStatus !== "danger";
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(cableOk ? [34, 197, 94] : [220, 38, 38]);
+  doc.setTextColor(cableOk ? 34 : 220, cableOk ? 197 : 38, cableOk ? 94 : 38);
   y += 6;
   doc.text(cableOk ? "CONFORME" : "NON CONFORME", margin, y);
   y += 15;
