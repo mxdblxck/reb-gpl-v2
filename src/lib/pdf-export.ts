@@ -798,16 +798,16 @@ export function generateExcel(results: SiteResult[], projectName?: string): void
     const vM = VMP * r.pv.seriesPerGroup, vS = r.params.systemVoltage;
     const segs = [{n:"M->BJ",L:3,I:IMP,V:vM,Is:ISC},{n:"BJ->Arm",L:30,I:IMP*np,V:vM,Is:ISC*np},{n:"B->Arm",L:8,I:100,V:vS,Is:ISC*np}];
     segs.forEach(s => {
-      const sc = (RHOC * 2 * s.L * s.I) / (EPS * s.V);
+      const sCalc = (RHOC * 2 * s.L * s.I) / (EPS * s.V);
       const izr = 1.25 * s.Is;
-      const bi = SECS.findIndex(x => x >= sc);
+      const bi = SECS.findIndex(x => x >= sCalc);
       const st = bi === -1 ? SECS.length - 1 : bi;
       let ch = SECS[st];
       for(let j=st;j<SECS.length;j++){ if((IZ[SECS[j]]??0)>=izr){ ch=SECS[j]; break; } }
       const dv = ((RHOC * 2 * s.L * s.I) / (ch * s.V)) * 100;
       const iz = IZ[ch] ?? 0;
       const ok = iz >= izr;
-      r7.push([sc(r.siteId, true, null, ORANGE), sc(s.n), sc(s.L), sc(s.I.toFixed(2)), sc(sc.toFixed(2)), sc(ch.toString(),true), sc(dv.toFixed(2)), sc(ok?"OK":"NON",true)]);
+      r7.push([sc(r.siteId, true, null, ORANGE), sc(s.n), sc(s.L), sc(s.I.toFixed(2)), sc(sCalc.toFixed(2)), sc(ch.toString(),true), sc(dv.toFixed(2)), sc(ok?"OK":"NON",true)]);
     });
   });
   const ws7 = XLSX.utils.aoa_to_sheet(r7);
