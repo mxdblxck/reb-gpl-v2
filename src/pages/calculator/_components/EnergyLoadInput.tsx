@@ -379,19 +379,19 @@ export default function EnergyLoadInput({
                       Charge Énergétique Journalière Totale
                       {marginPercent > 0 && (
                         <span className="ml-1 text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                          +{marginPercent}%
+                          +{Math.round(marginPercent)}%
                         </span>
                       )}
                     </div>
                     {marginPercent > 0 && detailedTotal > 0 && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Base: {detailedTotal.toFixed(0)} Wh/j → Avec marge: {(detailedTotal * (1 + marginPercent / 100)).toFixed(0)} Wh/j
+                        Base: {Math.round(detailedTotal)} Wh/j → Avec marge: {Math.round(detailedTotal * (1 + marginPercent / 100))} Wh/j
                       </div>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <span className="font-bold text-primary text-base">
-                      {detailedTotal.toFixed(0)}
+                      {Math.round(detailedTotal)}
                     </span>
                     <span className="text-xs text-muted-foreground ml-1">
                       Wh/j
@@ -423,7 +423,7 @@ export default function EnergyLoadInput({
               </p>
               {marginPercent > 0 && (
                 <p className="text-xs text-primary font-medium mt-1">
-                  +{marginPercent}% = <strong>{(detailedTotal * (1 + marginPercent / 100)).toFixed(0)} Wh/j</strong>
+                  +{Math.round(marginPercent)}% = <strong>{Math.round(detailedTotal * (1 + marginPercent / 100))} Wh/j</strong>
                 </p>
               )}
             </div>
