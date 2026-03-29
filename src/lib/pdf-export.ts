@@ -101,7 +101,7 @@ export function generateSizingPDF(results: SiteResult[], projectName?: string): 
     ["Autonomie Batterie", `${autonomy} jours`],
     ["Profondeur de Décharge (DOD)", `${dod * 100}%`],
     ["Rendement Batterie", `${batteryEff * 100}%`],
-["Capacité Unitaire Batterie", firstSiteId === "BVS1" ? "1275 Ah (BVS1)" : "1515 Ah (BVS2 & TA)"],
+["Capacité Unitaire Batterie", "BVS1 = 1275 Ah | BVS2 & TA = 1515 Ah"],
     ["Référence Normative", "IEC 61215, IEC 62259, IEEE 1115 et UTE C15-712-2"],
   ];
 
