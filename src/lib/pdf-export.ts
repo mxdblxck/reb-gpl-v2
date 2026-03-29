@@ -368,6 +368,7 @@ export function generateSizingPDF(results: SiteResult[], projectName?: string): 
       bodyStyles: { fontSize: 9 },
       margin: { left: margin, right: margin },
     });
+    y = ((doc as unknown) as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 20;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════════
